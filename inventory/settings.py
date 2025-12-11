@@ -22,13 +22,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-#SECRET_KEY = 'django-insecure-=wyyu50w6zi(9*5v$nw4-wdr=xh37vl1jiy%!5=mx^-($#d^gh'
-SECRET_KEY = os.environ.get('SECRET_KEY')
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-=wyyu50w6zi(9*5v$nw4-wdr=xh37vl1jiy%!5=mx^-($#d^gh')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ['https://inventorymanagementsystem-z38a.onrender.com']
+ALLOWED_HOSTS = ['*']
 
 # Application definition
 
@@ -84,12 +83,16 @@ WSGI_APPLICATION = 'inventory.wsgi.application'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
-    'default': dj_database_url.config(
-        # Replace this value with your local database's connection string.
-        default='postgresql://mysite:KFolaTIKihbpcwdItYXXJIrz6AUIXdKt@dpg-d4t1k5re5dus739003r0-a/inventorymanagementsystem_k0r7',
-        conn_max_age=600
-    )
+    'default': dj_database_url.config(default=os.environ.get('postgresql://mysite:KFolaTIKihbpcwdItYXXJIrz6AUIXdKt@dpg-d4t1k5re5dus739003r0-a/inventorymanagementsystem_k0r7'), conn_max_age=600)
 }
+
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',  # database file will be created in your project root
+#     }
+# }
+
 
 AUTH_USER_MODEL = 'accounts.CustomUser'
 LOGIN_REDIRECT_URL = '/'
