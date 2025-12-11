@@ -28,7 +28,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ['inventorymanagementsystem-z38a.onrender.com', 'ims-rsc6.onrender.com']
+ALLOWED_HOSTS = ['https://inventorymanagementsystem-z38a.onrender.com']
 
 # Application definition
 
