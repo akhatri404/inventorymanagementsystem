@@ -1,5 +1,6 @@
 asgiref==3.11.0
 diff-match-patch==20241021
+dj-database-url==3.0.1
 Django==5.2.8
 django-appconf==1.2.0
 django-import-export==4.3.14
@@ -11,6 +12,7 @@ numpy==2.2.6
 openpyxl==3.1.5
 packaging==25.0
 pandas==2.3.3
+psycopg2-binary==2.9.11
 python-dateutil==2.9.0.post0
 pytz==2025.2
 scikit-learn==1.7.2
