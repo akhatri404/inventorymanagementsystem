@@ -1,0 +1,71 @@
+
+        /* Page container to center everything */
+        .page-container {
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+
+        /* Form wrapper to unify all form layouts */
+        .form-wrapper {
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        /* Card styling */
+        .card-custom {
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            background: #fff;
+        }
+
+        /* Uniform form fields */
+        input, select, textarea {
+            height: 46px !important;
+            border-radius: 8px !important;
+        }
+
+        /* Labels styling */
+        .form-label {
+            font-weight: 500;
+        }
+
+        /* Form group spacing */
+        .form-group {
+            margin-bottom: 18px;
+        }
+
+        /* Headings */
+        .heading {
+            font-weight: 600;
+            margin-bottom: 25px;
+            text-align: center;
+        }
+
+        .nav-link.hover-color:hover {
+        color: whitesmoke !important; 
+        }
+
+        .table thead th {
+        background-color: lightskyblue; /* yellow */
+        color: black;
+        text-align: center !important;       /* horizontal center */
+        vertical-align: middle !important;  /* vertical center */
+        border: 1px solid black;
+        }
+
+        .table td{
+            border: 1px solid black;
+            border-collapse: collapse; 
+        }
+
+        .navbar {
+        background-color: #f0933c;   /* change this color */
+        padding: 2px;
+        }
+
+        h4,h5{
+            color: orangered;
+        }
+

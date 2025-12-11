@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h4>Product Default Value</h4>
+<div class="input-group mb-3">
+    <input type="text" id="searchBar" class="form-control" placeholder="Search by">
+    <button class="btn btn-sm btn-light border" id="clearSearch">X</button>
+</div>
+
+<form method="POST">
+    {% csrf_token %}
+
+    <table id="productTable" class="table table-hover align-middle table-bordered border-secondary-subtle">
+    <thead>
+            <tr>
+                <th>Yayoi Code</th>
+                <th>JAN Code</th>
+                <th>Product Name</th>
+                <th>Default Outgoing</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for d in defaults %}
+            <tr>
+                <td>{{ d.product.yayoi_code }}</td>
+                <td>{{ d.product.jan_code }}</td>
+                <td>{{ d.product.product_name }}</td>
+
+                <td>
+                    <input type="number"
+                           class="form-control"
+                           name="default_outgoing_{{ d.product.id }}"
+                           value="{{ d.default_outgoing }}">
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <button class="btn btn-primary">Save Defaults</button>
+</form>
+
+{% endblock %}

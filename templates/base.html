@@ -1,0 +1,169 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Inventory Management System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Select2 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+
+    <!-- Django-Select2 required jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+    <!-- Select2 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    
+    <!-- Loading external css file from folder -->
+    <link rel="stylesheet" href="{% static 'style.css' %}">
+
+    {% block extra_css %}{% endblock %}
+    {% block extra_head %}  {{ form.media }} {% endblock %}
+
+
+</head>
+
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark sticky-top">
+  <div class="container">
+    
+    <!-- Brand / Logo -->
+    <a class="navbar-brand text-black" href="{% url 'dashboard-home' %}">
+      Inventory System |
+    </a>
+
+    <!-- Toggle button for mobile -->
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <div class="collapse navbar-collapse" id="navbarNav">
+      
+      <!-- LEFT SIDE LINKS -->
+      {% if user.is_authenticated %}
+        <span class="navbar-text text-black me-3">
+            こんにちは {{ user.username }} さん
+            (
+                {% if user.is_superuser %}Admin{% elif user.is_staff %}Staff{% else %}User{% endif %}
+            )
+        </span>
+
+      {% endif %}
+
+      <span class="navbar-text text-black me-3"> 
+        今週: {{ current_year }} 年第 {{ current_week }} 週
+      </span>
+
+      <!-- RIGHT SIDE LINKS -->
+      <ul class="navbar-nav ms-auto">
+
+        <!-- Home -->
+        <li class="nav-item">
+          <a class="nav-link text-black hover-color" href="{% url 'dashboard-home' %}">ホームページ |</a>
+        </li>
+
+        <!-- All products -->
+        <li class="nav-item">
+            <a class="nav-link text-black hover-color" href="{% url 'product_list' %}">
+                すべての商品 |
+            </a>
+        </li>
+
+        <!-- All Week -->
+        <li class="nav-item">
+            <a class="nav-link text-black hover-color" href="{% url 'weekly-summary' %}">
+                すべての週 |
+            </a>
+        </li>
+
+        <!-- Set the default values for products -->
+        <!-- <li class="nav-item">
+            <a class="nav-link text-black hover-color" href="{% url 'product_default_settings' %}">
+                Default Values |
+            </a>
+        </li> -->
+
+          <li class="nav-item">
+            <form method="post" action="{% url 'logout' %}">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-link nav-link text-black hover-color">
+                ログアウト
+              </button>
+            </form>
+          </li>
+      </ul>
+
+    </div>
+  </div>
+</nav>
+
+<div class="container mt-4">
+   {% block content %}{% endblock %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+{% block extra_js %}{% endblock %}
+
+{% if messages %}
+<div aria-live="polite" aria-atomic="true" class="position-relative">
+    <div class="toast-container position-fixed top-0 end-0 p-3">
+        {% for message in messages %}
+        <div class="toast align-items-center text-white 
+                    {% if message.tags == 'success' %}bg-success
+                    {% elif message.tags == 'error' %}bg-danger
+                    {% else %}bg-info{% endif %} border-0 mb-2" 
+             role="alert"
+             data-bs-delay="2500" data-bs-autohide="true">
+            <div class="d-flex">
+                <div class="toast-body">
+                    {{ message }}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const toastElList = document.querySelectorAll('.toast');
+    toastElList.forEach(function(toastEl) {
+        new bootstrap.Toast(toastEl).show();
+    });
+});
+</script>
+{% endif %}
+
+<script>
+    const searchBar = document.getElementById("searchBar");
+    const clearBtn = document.getElementById("clearSearch");
+
+    searchBar.addEventListener("keyup", function () {
+        let value = this.value.toLowerCase();
+        const rows = document.querySelectorAll("#productTable tbody tr");
+
+        rows.forEach(row => {
+            let text = row.textContent.toLowerCase();
+            row.style.display = text.includes(value) ? "" : "none";
+        });
+    });
+    // Clear only the search bar — do NOT reset table
+    clearBtn.addEventListener("click", function () {
+        searchBar.value = "";
+
+        // Show ALL rows again
+        const rows = document.querySelectorAll("#productTable tbody tr");
+        rows.forEach(row => {
+            row.style.display = "";
+        });
+
+        searchBar.focus();
+    }); 
+
+</script>
+
+</body>
+</html>

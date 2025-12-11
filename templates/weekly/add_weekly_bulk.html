@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h4>Add Weekly Records</h4>
+
+<!-- <p><strong>Year:</strong> {{ year }} — <strong>Week:</strong> {{ week }}</p> -->
+
+<!-- <input type="text" id="searchBar" class="form-control mb-3"
+       placeholder="Search by JAN or Product Name..."> -->
+
+<div class="input-group mb-3 gap-1">
+    <input type="text" id="searchBar" class="form-control" placeholder="Search by">
+    <button class="btn btn-sm btn-light border" id="clearSearch">X</button>
+</div>
+
+<form method="POST" onsubmit="return validateForm();">
+    {% csrf_token %}
+
+    <div class="d-flex gap-3 mb-3 align-items-end">
+        <div>
+            <label class="form-label">Year</label>
+            <input type="number" name="year" class="form-control" value="{{ year }}">
+        </div>
+
+        <div>
+            <label class="form-label">Week</label>
+            <input type="number" name="week" class="form-control" value="{{ week }}"> 
+        </div>
+        <!-- <button type="button" class="btn btn-info mb-0" id="load-defaults-btn" style="height: 45px;">
+            Load Default Values
+        </button> -->
+        <!-- <a href="{% url 'weekly_bulk_add' %}" class="btn btn-secondary mb-0" style="height: 45px;">
+            Reset
+        </a> -->
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Upload Inventory Excel</label>
+        <input type="file" id="inventoryFile" class="form-control" accept=".xlsx,.xls">
+    </div>
+
+    <div class="d-flex justify-content-between mb-3">
+        
+        <!-- LEFT SIDE BUTTONS -->
+        <div class="d-flex gap-3">
+            <button type="button" id="uploadInventoryBtn" class="btn btn-warning">
+                Upload & Load Inventory
+            </button>
+            <a href="{% url 'weekly_bulk_add' %}" class="btn btn-secondary">
+                Reset
+            </a>
+        </div>
+
+        <!-- RIGHT SIDE BUTTONS -->
+        <div class="d-flex gap-3">
+            <button class="btn btn-primary">Save Selected Records</button>
+            <a href="{% url 'weekly-summary' %}" class="btn btn-secondary">
+                Cancel
+            </a>
+        </div>
+
+    </div>
+    
+    <table id="productTable" class="table table-hover align-middle table-bordered border-secondary-subtle">
+        <thead>
+            <tr align="center">
+                <th>Yayoi Code</th>
+                <th>JAN Code </th>
+                <th>商品 </th>
+                <th> <div class="d-flex justify-content-center align-items-center gap-1">
+                    すべて選ぶ <input type="checkbox" id="selectAll"> </div>         
+                </th>
+                <th>入庫 </th>
+                <th>在庫 </th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% for p in products %}
+            <tr>
+                <td>{{ p.yayoi_code }}</td>
+                <td>{{ p.jan_code }}</td>
+                <td>{{ p.product_name }}</td>
+                <td align="center">
+                    <input type="checkbox" class="product-checkbox" name="selected_products" value="{{ p.id }}">
+                </td>
+                <td>
+                    <input type="number" name="incoming_{{p.id }}" class="form-control" value="" placeholder="Enter incoming value">
+                </td>
+                <td>
+                    <input type="number" name="inventory_{{p.id }}" class="form-control" placeholder="Inventory" readonly>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+    </table>
+
+</form>
+
+<script>
+    const searchBar = document.getElementById("searchBar");
+
+    const clearBtn = document.getElementById("clearSearch");
+
+    const rows = document.querySelectorAll("#productTable tbody tr");
+
+    searchBar.addEventListener("keyup", function () {
+        let value = this.value.toLowerCase();
+
+        rows.forEach(row => {
+            let text = row.textContent.toLowerCase();
+            row.style.display = text.includes(value) ? "" : "none";
+        });
+    });
+    // Clear only the search bar — do NOT reset table
+    clearBtn.addEventListener("click", function () {
+        searchBar.value = "";
+
+        // Show ALL rows again
+            rows.forEach(row => {
+                row.style.display = "";
+            });
+
+        searchBar.focus();
+    });
+
+    // document.getElementById("load-defaults-btn").addEventListener("click", function () {
+    // fetch("{% url 'get_product_defaults' %}")
+    //     .then(res => res.json())
+    //     .then(defaults => {
+    //         for (const [id, d] of Object.entries(defaults)) {
+    //             let incoming = document.querySelector(`[name="incoming_${id}"]`);
+    //             let outgoing = document.querySelector(`[name="outgoing_${id}"]`);
+
+    //             if (incoming) incoming.value = d.incoming;
+    //             if (outgoing) outgoing.value = d.outgoing;
+    //         }
+    //     });
+    // });
+
+    // When the top checkbox is clicked
+        document.getElementById('selectAll').addEventListener('change', function() {
+            let checkboxes = document.querySelectorAll('.product-checkbox');
+            checkboxes.forEach(cb => cb.checked = this.checked);
+        });
+
+    // upload inventory excel file
+    document.getElementById("uploadInventoryBtn").addEventListener("click", function () {
+        const fileInput = document.getElementById("inventoryFile");
+
+        if (!fileInput.files.length) {
+            alert("Please choose a file!");
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("file", fileInput.files[0]);
+
+        fetch("{% url 'upload_weekly_inventory' %}", {
+            method: "POST",
+            body: formData,
+            headers: {
+                "X-CSRFToken": "{{ csrf_token }}"
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+                return;
+            }
+
+            const inventoryData = data.data;
+
+            for (const [productId, inv] of Object.entries(inventoryData)) {
+                let input = document.querySelector(`[name="inventory_${productId}"]`);
+                if (input) {
+                    input.value = inv;
+                }
+            }
+
+            alert("Inventory loaded successfully!");
+        });
+    });
+
+    function validateForm() {
+    const boxes = document.querySelectorAll('input[name="selected_products"]:checked');
+    if (boxes.length === 0) {
+        alert("Please select at least one product before saving.");
+        return false;
+    }
+    return true;
+}
+
+
+</script>
+
+{% endblock %}
+
+

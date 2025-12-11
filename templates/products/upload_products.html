@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h4>Upload Product Excel</h4>
+<h6>This form is for data entry only. This is used to add product details in bulk.</h6>
+
+<form method="POST" enctype="multipart/form-data" class="border p-4 rounded">
+    {% csrf_token %}
+    <div class="mb-3">
+        <label class="form-label">Choose Excel File</label>
+        <input type="file" name="file" class="form-control" required>
+    </div>
+    <button class="btn btn-primary">Upload</button>
+    <a href="{% url 'product_list' %}" class="btn btn-secondary">Cancel</a>
+</form>
+
+{% endblock %}

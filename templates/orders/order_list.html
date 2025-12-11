@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3>Order List</h3>
+    <a href="{% url 'orders:add' %}" class="btn btn-primary">Add Order</a>
+</div>
+
+<table class="table table-bordered table-striped">
+    <thead class="table-dark">
+        <tr>
+            <th>Week</th>
+            <th>JAN Code</th>
+            <th>Product Name</th>
+            <th>Incoming</th>
+            <th>Outgoing</th>
+            <th>In Stock</th>
+            <th>Remaining Weeks</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+
+    <tbody>
+    {% for order in orders %}
+        <tr>
+            <td>{{ order.weeknum }}</td>
+            <td>{{ order.product.jan_code }}</td>
+            <td>{{ order.product.product_name }}</td>
+            <td>{{ order.incominggoods }}</td>
+            <td>{{ order.outgoinggoods }}</td>
+            <td>{{ order.instock }}</td>
+            <td>{{ order.remainingweeks }}</td>
+            <td>
+                <a href="{% url 'orders:update' order.id %}" class="btn btn-warning btn-sm">Edit</a>
+                <a href="{% url 'orders:delete' order.id %}" class="btn btn-danger btn-sm">Delete</a>
+            </td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+{% endblock %}

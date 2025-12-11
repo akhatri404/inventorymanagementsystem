@@ -1,0 +1,24 @@
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>JAN</th>
+            <th>Name</th>
+            <th>Incoming</th>
+            <th>Outgoing</th>
+            <th>Inventory</th>
+            <th>Remaining Weeks</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for r in records %}
+        <tr>
+            <td>{{ r.product.jan_code }}</td>
+            <td>{{ r.product.product_name }}</td>
+            <td>{{ r.incoming_goods }}</td>
+            <td>{{ r.outgoing_goods }}</td>
+            <td>{{ r.inventory }}</td>
+            <td>{{ r.remaining_weeks }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>

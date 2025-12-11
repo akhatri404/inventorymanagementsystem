@@ -1,0 +1,76 @@
+/* static/css/forms.css */
+
+/* container: center all forms and keep consistent width */
+.form-page {
+  max-width: 900px;     /* change to desired width */
+  margin: 32px auto;    /* center with vertical spacing */
+  padding: 20px;
+}
+
+/* card look for form area */
+.form-card {
+  background: #fff;
+  border-radius: 10px;
+  padding: 22px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+}
+
+/* uniform input height + spacing */
+.form-card input[type="text"],
+.form-card input[type="number"],
+.form-card input[type="email"],
+.form-card input[type="password"],
+.form-card select,
+.form-card textarea,
+.form-card .form-control {
+  height: 48px;
+  padding: 0 12px;
+  border-radius: 8px;
+  box-shadow: none;
+  border: 1px solid #e0e0e0;
+  font-size: 1rem;
+}
+
+/* textarea slightly taller and vertically aligned */
+.form-card textarea.form-control {
+  height: 110px;
+  padding-top: 10px;
+  resize: vertical;
+}
+
+/* label style */
+.form-card label {
+  font-weight: 600;
+  margin-bottom: 6px;
+  display: block;
+}
+
+/* consistent spacing for each form row */
+.form-row {
+  margin-bottom: 14px;
+}
+
+/* full-width primary button */
+.form-card .btn-primary {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+/* secondary/cancel button aligned next to primary (if needed) */
+.form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+/* small screens: make it full viewport width minus margin */
+@media (max-width: 576px) {
+  .form-page { padding: 12px; max-width: calc(100% - 24px); }
+  .form-card input[type="text"],
+  .form-card input[type="number"],
+  .form-card select,
+  .form-card .form-control { height: 44px; font-size: .95rem; }
+  .form-card .btn-primary { padding: 10px; }
+}

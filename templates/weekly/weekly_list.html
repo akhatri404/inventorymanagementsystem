@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2>Weekly Inventory — {{ current_year }} Week {{ current_week }}</h2>
+
+<div class="container mt-4">
+    <form method="get" class="row g-2 mb-3">
+        <div class="col-md-3">
+            <input type="number" name="year" value="{{ year }}" placeholder="Year" class="form-control" />
+        </div>
+        <div class="col-md-3">
+            <input type="number" name="week" value="{{ week }}" placeholder="Week No." class="form-control" />
+        </div>
+        <div class="col-md-3">
+            <input type="text" name="search" value="{{ search }}" placeholder="Search" class="form-control" />
+        </div>
+        <div class="col-md-3 d-flex align-items-center">
+            <button class="btn btn-primary me-2">Filter</button>
+            <a href="{% url 'weekly-summary' %}" class="btn btn-secondary">Clear</a>
+        </div>
+    </form>
+
+<a href="{% url 'add_weekly_record' %}" class="btn btn-success mb-3">
+    Add Weekly Record
+</a>
+
+<a href="{% url 'weekly_bulk_add' %}" class="btn btn-success mb-3">
+    Add Weekly Records (Bulk)
+</a>
+
+
+<table class="table table-bordered">
+    <thead>
+        <tr>
+            <th>Product</th>
+            <th>Incoming</th>
+            <th>Outgoing</th>
+            <th>Inventory</th>
+            <th>Remaining Weeks</th>
+        </tr>
+    </thead>
+
+    <tbody>
+        {% for r in records %}
+        <tr>
+            <td>{{ r.product.product_name }} ({{ r.product.jan_code }})</td>
+            <td>{{ r.incoming_goods }}</td>
+            <td>{{ r.outgoing_goods }}</td>
+            <td>{{ r.inventory }}</td>
+            <td>{{ r.remaining_weeks|floatformat:2 }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5">No records found for this week.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% endblock %}
