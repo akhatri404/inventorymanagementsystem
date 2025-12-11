@@ -86,7 +86,7 @@ WSGI_APPLICATION = 'inventory.wsgi.application'
 DATABASES = {
     'default': dj_database_url.config(
         # Replace this value with your local database's connection string.
-        default='postgresql://postgres:postgres@localhost:5432/mysite',
+        default='postgresql://mysite:KFolaTIKihbpcwdItYXXJIrz6AUIXdKt@dpg-d4t1k5re5dus739003r0-a/inventorymanagementsystem_k0r7',
         conn_max_age=600
     )
 }
