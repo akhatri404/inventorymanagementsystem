@@ -1,6 +1,7 @@
 from django.db import models
 from products.models import Product, ProductDefaults
 from django.conf import settings
+from datetime import date
 
 class WeeklyRecord(models.Model):
     year = models.IntegerField()

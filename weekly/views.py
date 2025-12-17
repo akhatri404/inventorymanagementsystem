@@ -10,6 +10,8 @@ from products.models import Product
 import pandas as pd
 from django.http import JsonResponse
 
+from dashboard.views import iso_week_to_japanese_label
+
 @login_required
 @role_required(['add'])
 def add_weekly_record(request):
@@ -56,6 +58,7 @@ def add_weekly_bulk(request):
         return y, w
 
     default_year, default_week = get_previous_week()
+    week_label = iso_week_to_japanese_label(default_year, default_week)
 
     products = Product.objects.all().order_by("yayoi_code")
 
@@ -79,7 +82,7 @@ def add_weekly_bulk(request):
                 week_no=week,
                 defaults={
                     'incoming_goods': incoming,
-                    'inventory': inventory
+                    'inventory': inventory,
                 }
             )
 
@@ -96,6 +99,7 @@ def add_weekly_bulk(request):
         "products": products,
         "year": default_year,
         "week": default_week,
+        "week_label": week_label,
     })
 
 # @login_required
@@ -181,22 +185,22 @@ def upload_weekly_inventory(request):
         return JsonResponse({"error": "No file uploaded"}, status=400)
 
     try:
-        df = pd.read_excel(file, sheet_name='Sheet1')
+        df = pd.read_excel(file)
     except:
         return JsonResponse({"error": "Invalid Excel file"}, status=400)
 
-    required = {"yayoi_code", "product_name", "inventory"}
+    required = {"商品コード", "商品名", "総数"} 
     if not required.issubset(df.columns):
         return JsonResponse({
-            "error": "Excel must include: yayoi_code, product_name, inventory"
+            "error": "Excel must include: 商品コード, 商品名, 総数"
         }, status=400)
 
     # -------------------------
     # Extract values
     # -------------------------
-    codes = df["yayoi_code"].astype(str).tolist()
-    names = df["product_name"].astype(str).tolist()
-    c_values = df["inventory"].fillna(0).astype(int).tolist()
+    codes = df["商品コード"].astype(str).tolist()
+    names = df["商品名"].astype(str).tolist()
+    c_values = df["総数"].fillna(0).astype(int).tolist()
 
     # -------------------------
     # E column

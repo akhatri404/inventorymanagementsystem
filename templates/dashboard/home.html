@@ -54,11 +54,33 @@
                 </div>
 
                 <div class="modal-body">
-                    <ul> {% for r in need_attention|slice:":5"  %} 
+                    <!-- <ul> {% for r in need_attention|slice:":5"  %} 
                         <li>{{ r.product.product_name }} ({{ r.product.yayoi_code }}) — 残週: {{ r.remaining_weeks|floatformat:2 }}</li> 
                         {% endfor %} 
                         <li>...</li>
-                    </ul> 
+                    </ul>  -->
+
+                    <table class="table table-sm table-striped">
+                        <thead>
+                            <tr>
+                                <th>弥生</th>
+                                <th>商品名</th>
+                                <th>残週</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for r in need_attention|slice:":5" %}
+                            <tr>
+                                <td>{{ r.product.yayoi_code }}</td>
+                                <td>{{ r.product.product_name }}</td>
+                                <td>{{ r.remaining_weeks|floatformat:1 }}</td>
+                            </tr>
+                            {% endfor %}
+                            <tr>
+                                <td colspan="3" class="text-center">...　もっと</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
 
                 <div class="modal-footer">
@@ -97,7 +119,7 @@
     </form>
 
     <!-- Inventory Table --> 
-    <h5 class="mt-4 mb-3 fw-bold">最新週の在庫: {{ latest_year }} 年第 {{ latest_week }} 週 </h5>
+    <h5 class="mt-4 mb-3 fw-bold">最新週の在庫: {{ latest_label }}</h5>
 
     <table class="table table-hover align-middle table-bordered border-secondary-subtle">
         <thead>

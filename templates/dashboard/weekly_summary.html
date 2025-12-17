@@ -6,11 +6,10 @@
 
     <form method="get" class="row g-2 mb-3">
         <div class="col-md-3">
-            <input type="number" name="year" value="{{ year }}" placeholder="Year" class="form-control" min="2020" max="9999"/>
-        </div>
-
-        <div class="col-md-3">
-            <input type="number" name="week" value="{{ week }}" placeholder="Week No." class="form-control" min="1" max="53" />
+            <input class="form-control"
+                type="week"
+                name="week"
+                value="{{ selected_week_value }}" />
         </div>
 
         <div class="col-md-3">
@@ -22,10 +21,13 @@
             <a href="{% url 'weekly-summary' %}" class="btn btn-secondary w-50">リセット</a>
         </div>
     </form>
-
-    <!-- <a href="{% url 'add_weekly_record' %}" class="btn btn-success mb-3">
-        Add Weekly Record
-    </a> -->
+    <div class="mb-3">
+        {% if selected_label %}
+            <strong>選択された週: </strong> {{ selected_label }}
+        {% else %}
+            <strong>選択された週: </strong> 全ての週
+        {% endif %} 
+    </div>
 
     <a href="{% url 'weekly_bulk_add' %}" class="btn btn-success mb-3 me-2">
         毎週追加

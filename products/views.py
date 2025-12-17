@@ -6,9 +6,16 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseForbidden
 from django.core.paginator import Paginator
 from django.db.models import Q
+from datetime import date
 
 import pandas as pd
 from django.contrib import messages
+
+from dashboard.views import iso_week_to_japanese_label
+today = date.today()
+current_year = today.isocalendar().year
+current_week = today.isocalendar().week
+week_label = iso_week_to_japanese_label(current_year, current_week)
 
 @login_required
 @role_required(['add'])
@@ -67,6 +74,9 @@ def product_list(request):
         'search': search,
         'status_filter': status_filter,
         'start_index': start_index,
+        'current_year':current_year,
+        'current_week':current_week,
+        'week_label':week_label,
         })
 
 @login_required

@@ -4,12 +4,13 @@
 <h4>商品表 - 注意が必要 ! </h4>
 
     <form method="get" class="row g-2 mb-3">
-        <div class="col-md-9">
+        <div class="col-md-6">
             <input type="text" name="search" value="{{ search }}" placeholder="Search" class="form-control" />
         </div>
-        <div class="col-md-3 d-flex gap-2 align-items-center">
+        <div class="col-md-6 d-flex gap-2 align-items-center">
             <button class="btn btn-primary w-50">フィルター</button>
             <a href="{% url 'dashboard-need-attention' %}" class="btn btn-secondary w-50">リセット</a>
+            <a href="?export=csv&search={{ search }}" class="btn btn-success w-50"> Export CSV </a>
         </div>
     </form>
   

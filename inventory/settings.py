@@ -22,13 +22,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-=wyyu50w6zi(9*5v$nw4-wdr=xh37vl1jiy%!5=mx^-($#d^gh')
+#SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-=wyyu50w6zi(9*5v$nw4-wdr=xh37vl1jiy%!5=mx^-($#d^gh')
+SECRET_KEY = 'django-insecure-=wyyu50w6zi(9*5v$nw4-wdr=xh37vl1jiy%!5=mx^-($#d^gh'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost').split(',')
-#ALLOWED_HOSTS = ['inventorymanagementsystem-z38a.onrender.com']
+#ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost').split(',')
+ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 
 # Application definition
 
@@ -79,21 +80,20 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'inventory.wsgi.application'
 
-DATABASES = {}
-# Database
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
-if os.environ.get('DATABASE_URL'):
-    # Production (PostgreSQL on Render)
-    DATABASES['default'] = dj_database_url.config(
-        default=os.environ.get('postgresql://mysite:KFolaTIKihbpcwdItYXXJIrz6AUIXdKt@dpg-d4t1k5re5dus739003r0-a/inventorymanagementsystem_k0r7'),
-        conn_max_age=600
-    )
-else:
-    # Local development (SQLite)
-    DATABASES['default'] = {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+# DATABASES = {}
+
+# if os.environ.get('DATABASE_URL'):
+#     # Production (PostgreSQL on Render)
+#     DATABASES['default'] = dj_database_url.config(
+#         default=os.environ.get('postgresql://mysite:KFolaTIKihbpcwdItYXXJIrz6AUIXdKt@dpg-d4t1k5re5dus739003r0-a/inventorymanagementsystem_k0r7'),
+#         conn_max_age=600
+#     )
+# else:
+#     # Local development (SQLite)
+#     DATABASES['default'] = {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
+#     }
 
 
 # DATABASES = {
@@ -102,12 +102,12 @@ else:
 #         conn_max_age=600)
 # }
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',  # database file will be created in your project root
-#     }
-# }
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',  # database file will be created in your project root
+    }
+}
 
 
 AUTH_USER_MODEL = 'accounts.CustomUser'

@@ -2,8 +2,8 @@ from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from products.models import Product
 from weekly.models import WeeklyRecord
-from .predict import predict_inventory
-from datetime import date
+#from .predict import predict_inventory
+from datetime import date, timedelta
 from django.contrib import messages
 from django.db.models import Max, Subquery, OuterRef, Sum
 from django.core.paginator import Paginator
@@ -13,12 +13,24 @@ from django.http import HttpResponse
 
 from django.db.models import Q
 
+def iso_week_to_japanese_label(iso_year: int, iso_week: int) -> str:
+    # Monday of ISO week
+    monday = date.fromisocalendar(iso_year, iso_week, 1)
+
+    # Sunday-start week (Japanese UI)
+    sunday = monday - timedelta(days=1)
+    return f"{sunday.strftime('%y')}年{sunday.month}月{sunday.day}日週"
+
+today = date.today()
+current_year = today.isocalendar().year
+current_week = today.isocalendar().week
+week_label = iso_week_to_japanese_label(current_year, current_week)
+
 @login_required
 def home(request):
     try:
-        today = date.today()
-        current_year = today.isocalendar().year
-        current_week = today.isocalendar().week
+        sunday = today - timedelta(days=(today.weekday() + 1) % 7)
+        week_label = f"{sunday.strftime('%y')}年{sunday.month}月{sunday.day}日週"
 
         products = Product.objects.filter(is_active=True)
         # Filters and search
@@ -48,6 +60,7 @@ def home(request):
         glatest_record = WeeklyRecord.objects.order_by('-year', '-week_no').first()
         latest_week= glatest_record.week_no
         latest_year= glatest_record.year
+        latest_label = iso_week_to_japanese_label(latest_year, latest_week)
 
         #dashboard stats
         total_products = Product.objects.all().count()
@@ -62,8 +75,8 @@ def home(request):
         for p in products:
             latest = WeeklyRecord.objects.filter(
                 product=p,
-                year=current_year,
-                week_no=current_week
+                year=latest_year,
+                week_no=latest_week
             ).first()
 
             if latest and latest.remaining_weeks <= 5:
@@ -76,7 +89,7 @@ def home(request):
             p.record = p.weeklyrecord_set.filter(year=current_year, week_no=current_week).first()
 
         # Predictions
-        product_predictions = {p.jan_code:predict_inventory(p,weeks=1) for p in products}
+        #product_predictions = {p.jan_code:predict_inventory(p,weeks=1) for p in products}
 
         # --- Pagination ---
         paginator = Paginator(products, 50)  # 50 items per page
@@ -105,7 +118,6 @@ def home(request):
             'total_inactive': total_inactive,
             'need_attention':need_attention,
             'recently_added':recently_added,
-            'product_predictions':product_predictions,  
             'show_need_attention_popup':show_modal,
             'show_recently_added_popup':len(recently_added)>0,
             'current_year':current_year,
@@ -117,6 +129,8 @@ def home(request):
             'start_index': start_index,
             'latest_year': latest_year,
             'latest_week': latest_week,
+            'week_label': week_label,
+            'latest_label': latest_label,
         }
         
         return render(request,'dashboard/home.html', context)
@@ -159,12 +173,14 @@ def export_csv(request):
     # Build dynamic filename
     filename = f"inventory_export_{start_year}{start_week}_{end_year}{end_week}.csv"
 
-    response = HttpResponse(content_type='text/csv')
+    response = HttpResponse(content_type='text/csv; charset=utf-8')
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    response.write('\ufeff')
 
     writer = csv.writer(response)
     writer.writerow(['年',
         '週',
+        '週ラベル',
         '弥生',
         'JAN',
         '商品',
@@ -181,8 +197,10 @@ def export_csv(request):
 
     for r in records:
         p = r.product
+        week_label = iso_week_to_japanese_label(r.year, r.week_no)
         writer.writerow([r.year,
             r.week_no,
+            week_label,
             p.yayoi_code,
             p.jan_code,
             p.product_name,
@@ -201,17 +219,12 @@ def export_csv(request):
 
 @login_required
 def weekly_summary(request):
-    year = request.GET.get('year', '')
-    week = request.GET.get('week', '')
     search = request.GET.get('search', '')
+    week_input = request.GET.get("week") 
+    selected_week_value = ""
+    selected_label = None
 
     records = WeeklyRecord.objects.select_related("product").order_by("-year", "-week_no")
-
-    if year:
-        records = records.filter(year=year)
-
-    if week:
-        records = records.filter(week_no=week)
 
     if search:
         records = records.filter(
@@ -219,6 +232,14 @@ def weekly_summary(request):
             Q(product__jan_code__icontains=search) |
             Q(product__yayoi_code__icontains =search)
         )
+    if week_input:
+            year, week = str.split(week_input, '-W')
+            year = int(year)
+            week = int(week)
+            records = records.filter(year=year, week_no=week)
+
+            selected_week_value = week_input
+            selected_label = iso_week_to_japanese_label(year, week)
 
     # --- Pagination ---
     paginator = Paginator(records, 50)  # 20 items per page
@@ -230,11 +251,14 @@ def weekly_summary(request):
     
     context = {
         "records": page_obj,
-        "year": year,
-        "week": week,
         "search": search,
         'page_obj': page_obj,
         'start_index': start_index,
+        "selected_week_value": selected_week_value,
+        "current_year": current_year,
+        "current_week": current_week,
+        "week_label": week_label,
+        "selected_label": selected_label,
     }
     return render(request, 'dashboard/weekly_summary.html', context)
 
@@ -297,9 +321,10 @@ def inventory_list(request):
 @login_required
 def need_attention_list(request):
     search = request.GET.get('search', '')
+    export = request.GET.get('export')  # 👈 export flag
     # find latest week with data
     latest_record = WeeklyRecord.objects.order_by('-year', "-week_no").first()
-
+   
     if not latest_record:
         return render(request, 'dashboard/need_attention.html', {'records': []})
      
@@ -316,6 +341,34 @@ def need_attention_list(request):
     
      # sort by remaining weeks (highest first)
     records = records.order_by("-remaining_weeks")
+
+    # 🔹 EXPORT MODE (NO PAGINATION)
+    if export == "csv":
+        response = HttpResponse(content_type='text/csv; charset=utf-8')
+        response['Content-Disposition'] = (
+            f'attachment; filename="need_attention_{latest_record.year}_W{latest_record.week_no}.csv"'
+        )
+        response.write('\ufeff')  # BOM for UTF-8
+
+        writer = csv.writer(response)
+        writer.writerow([
+            '#',
+            '商品名',
+            'JAN',
+            '弥生',
+            '残週'
+        ])
+
+        for idx, r in enumerate(records, start=1):
+            writer.writerow([
+                idx,
+                r.product.product_name,
+                r.product.jan_code,
+                r.product.yayoi_code,
+                round(r.remaining_weeks, 1)
+            ])
+
+        return response
     
     # PAGINATION (20 per page)
     paginator = Paginator(records, 50)
@@ -328,6 +381,9 @@ def need_attention_list(request):
         'page_obj': page_obj,
         'search' : search,
         'start_index':start_index,
+        'current_year':current_year,
+        'current_week':current_week,
+        'week_label':week_label,
     })
 
 @login_required

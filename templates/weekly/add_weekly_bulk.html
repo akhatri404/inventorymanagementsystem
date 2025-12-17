@@ -18,14 +18,20 @@
 
     <div class="d-flex gap-3 mb-3 align-items-end">
         <div>
+            <label class="form-label">Week Label</label>
+            <input type="text" name="week_label" class="form-control" value="{{ week_label }}" readonly>
+        </div>
+        
+        <div>
             <label class="form-label">Year</label>
-            <input type="number" name="year" class="form-control" value="{{ year }}">
+            <input type="number" name="year" class="form-control" value="{{ year }}" readonly>
         </div>
 
         <div>
             <label class="form-label">Week</label>
-            <input type="number" name="week" class="form-control" value="{{ week }}"> 
+            <input type="number" name="week" class="form-control" value="{{ week }}" readonly> 
         </div>
+
         <!-- <button type="button" class="btn btn-info mb-0" id="load-defaults-btn" style="height: 45px;">
             Load Default Values
         </button> -->
@@ -64,8 +70,8 @@
     <table id="productTable" class="table table-hover align-middle table-bordered border-secondary-subtle">
         <thead>
             <tr align="center">
-                <th>Yayoi Code</th>
-                <th>JAN Code </th>
+                <th>弥生</th>
+                <th>JAN</th>
                 <th>商品 </th>
                 <th> <div class="d-flex justify-content-center align-items-center gap-1">
                     すべて選ぶ <input type="checkbox" id="selectAll"> </div>         

@@ -53,7 +53,7 @@
       {% endif %}
 
       <span class="navbar-text text-black me-3"> 
-        今週: {{ current_year }} 年第 {{ current_week }} 週
+        今週: {{ week_label }} 
       </span>
 
       <!-- RIGHT SIDE LINKS -->
@@ -86,12 +86,16 @@
         </li> -->
 
           <li class="nav-item">
+            {% if user.is_authenticated %}
             <form method="post" action="{% url 'logout' %}">
               {% csrf_token %}
               <button type="submit" class="btn btn-link nav-link text-black hover-color">
                 ログアウト
               </button>
             </form>
+            {% else %}
+            <a class="nav-link text-black hover-color" href="{% url 'login' %}">ログイン</a>
+            {% endif %} 
           </li>
       </ul>
 
