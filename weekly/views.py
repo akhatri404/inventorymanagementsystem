@@ -297,3 +297,74 @@ def upload_weekly_inventory(request):
             result[p.id] = 0
 
     return JsonResponse({"data": result})
+
+@login_required
+def upload_historical_weekly(request):
+    if request.method != "POST":
+        return render(request, "weekly/upload_historical.html")
+
+    year = int(request.POST.get("year"))
+    week = int(request.POST.get("week_no"))
+    file = request.FILES.get("file")
+
+    if not file:
+        messages.error(request, "No file uploaded")
+        return redirect("upload_historical_weekly")
+
+    try:
+        df = pd.read_excel(file)
+    except:
+        messages.error(request, "Invalid Excel file")
+        return redirect("upload_historical_weekly")
+
+    required = {"yayoi_code", "incoming", "outgoing", "inventory"}
+    if not required.issubset(df.columns):
+        messages.error(
+            request,
+            "Excel must contain: yayoi_code, incoming, outgoing, inventory"
+        )
+        return redirect("upload_historical_weekly")
+
+    missing_products = []
+    imported = 0
+    numeric_cols = ["incoming", "outgoing", "inventory"]
+
+    for col in numeric_cols:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+        
+    df = df.fillna(0)
+
+    for _, row in df.iterrows():
+        code = str(row["yayoi_code"]).strip()
+
+        try:
+            product = Product.objects.get(yayoi_code=code)
+        except Product.DoesNotExist:
+            missing_products.append(code)
+            continue
+
+        WeeklyRecord.objects.update_or_create(
+            product=product,
+            year=year,
+            week_no=week,
+            defaults={
+                "incoming_goods": int(row["incoming"] or 0),
+                "outgoing_goods": int(row["outgoing"] or 0),
+                "inventory": int(row["inventory"] or 0),
+                "is_historical": True
+            }
+        )
+        imported += 1
+
+    if missing_products:
+        messages.warning(
+            request,
+            f"{len(missing_products)} products not found and skipped."
+        )
+
+    messages.success(
+        request,
+        f"Historical data uploaded for Year {year}, Week {week}. ({imported} records)"
+    )
+
+    return redirect("weekly-summary")

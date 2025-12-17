@@ -11,13 +11,17 @@ class WeeklyRecord(models.Model):
     outgoing_goods = models.IntegerField(default=0)
     inventory = models.IntegerField(default=0)
     remaining_weeks = models.FloatField(default=0)
+    is_historical = models.BooleanField(default=False)  # 👈 NEW
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         unique_together = ('year', 'week_no', 'product')
         ordering = ['-year', '-week_no', 'product__jan_code']
 
-    def save(self, *args, **kwargs):
+    def save(self, *args, **kwargs):    # 🚨 Historical data → NEVER recalculate
+        if self.is_historical:
+            super().save(*args, **kwargs)
+            return
 
         # --- 1. Determine previous year & week correctly ---
         if self.week_no > 1:

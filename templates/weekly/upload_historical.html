@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<form method="post" enctype="multipart/form-data" class="card p-3">
+    {% csrf_token %}
+
+    <div class="row g-3 mb-3">
+        <div class="col-md-3">
+            <label class="form-label">Year</label>
+            <input type="number" name="year" class="form-control" required>
+        </div>
+
+        <div class="col-md-3">
+            <label class="form-label">Week No</label>
+            <input type="number" name="week_no" min="1" max="53" class="form-control" required>
+        </div>
+
+        <div class="col-md-6">
+            <label class="form-label">Excel File</label>
+            <input type="file" name="file" class="form-control" accept=".xlsx,.xls" required>
+        </div>
+    </div>
+
+    <button class="btn btn-warning">
+        Upload Historical Week
+    </button>
+</form>
+{% endblock %}
