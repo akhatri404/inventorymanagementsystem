@@ -1,5 +1,5 @@
 from django import forms
-from .models import WeeklyRecord
+from .models import WeeklyRecord, WeeklyInventory
 from products.models import Product
 from datetime import date
 from django_select2.forms import ModelSelect2Widget
@@ -35,3 +35,13 @@ class WeeklyRecordForm(forms.ModelForm):
         self.fields["product"].label_from_instance = (
             lambda obj: f"{obj.jan_code} - {obj.product_name}"
         )
+
+class WeeklyInventoryForm(forms.ModelForm):
+    class Meta:
+        model = WeeklyInventory
+        fields = ["year", "week_no", "product", "total_quantity"]
+        widgets = {
+            "year": forms.NumberInput(attrs={"class": "form-control"}),
+            "week_no": forms.NumberInput(attrs={"class": "form-control"}),
+            "product": ProductWidget(attrs={"class": "form-control"}),
+        }

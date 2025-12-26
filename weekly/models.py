@@ -1,5 +1,5 @@
 from django.db import models
-from products.models import Product, ProductDefaults
+from products.models import Product, ProductDefaults, ProductMaster
 from django.conf import settings
 from datetime import date
 
@@ -20,6 +20,10 @@ class WeeklyRecord(models.Model):
 
     def save(self, *args, **kwargs):    # 🚨 Historical data → NEVER recalculate
         if self.is_historical:
+            if self.product.forecast > 0:
+                self.remaining_weeks = (self.inventory or 0) / self.product.forecast
+            else:
+                self.remaining_weeks = 0
             super().save(*args, **kwargs)
             return
 
@@ -69,4 +73,42 @@ class WeeklyRecord(models.Model):
 
     def __str__(self):
         return f"{self.product.jan_code} | {self.product.product_name} — Y{self.year} W{self.week_no}"
+    
+class FutureIncomingPlan(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    year = models.IntegerField()
+    week_no = models.IntegerField()
+
+    planned_incoming = models.IntegerField()
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('product', 'year', 'week_no')
+    
+    def __str__(self):
+        return f"{self.product.jan_code} | {self.product.product_name} — Y{self.year} W{self.week_no} : {self.planned_incoming}"
+
+
+class WeeklyInventory(models.Model):
+    product = models.ForeignKey(
+        ProductMaster,
+        on_delete=models.CASCADE,
+        related_name="weekly_inventory"
+    )
+
+    year = models.IntegerField()
+    week_no = models.IntegerField()
+    total_quantity = models.IntegerField()
+    no_of_cases = models.IntegerField()
+    loose = models.IntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("year", "week_no", "product")
+    
+    def __str__(self):
+        return f"{self.product.jan_code} | {self.product.product_name} — Y{self.year} W{self.week_no}"
+
+
 

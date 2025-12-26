@@ -1,11 +1,13 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from products.models import Product
-from weekly.models import WeeklyRecord
+from weekly.models import WeeklyRecord, FutureIncomingPlan
 #from .predict import predict_inventory
-from datetime import date, timedelta
+from datetime import date
+from django.utils import timezone
 from django.contrib import messages
-from django.db.models import Max, Subquery, OuterRef, Sum
+from django.db.models import Max, Subquery, OuterRef, Sum, IntegerField, Value, F, ExpressionWrapper
+from django.db.models.functions import Coalesce
 from django.core.paginator import Paginator
 
 import csv
@@ -18,20 +20,17 @@ def iso_week_to_japanese_label(iso_year: int, iso_week: int) -> str:
     monday = date.fromisocalendar(iso_year, iso_week, 1)
 
     # Sunday-start week (Japanese UI)
-    sunday = monday - timedelta(days=1)
+    sunday = monday
     return f"{sunday.strftime('%y')}年{sunday.month}月{sunday.day}日週"
 
-today = date.today()
-current_year = today.isocalendar().year
-current_week = today.isocalendar().week
+today = timezone.now().date()
+current_year, current_week, _ = today.isocalendar()
 week_label = iso_week_to_japanese_label(current_year, current_week)
+
 
 @login_required
 def home(request):
     try:
-        sunday = today - timedelta(days=(today.weekday() + 1) % 7)
-        week_label = f"{sunday.strftime('%y')}年{sunday.month}月{sunday.day}日週"
-
         products = Product.objects.filter(is_active=True)
         # Filters and search
         search = request.GET.get('search','')
@@ -49,14 +48,39 @@ def home(request):
         latest_record = WeeklyRecord.objects.filter(
             product=OuterRef('pk')
         ).order_by('-year', '-week_no')
+        
+        # next non-zero incoming (strictly future weeks)
+        future_plans = (
+            FutureIncomingPlan.objects
+            .filter(product=OuterRef('pk'), planned_incoming__gt=0)
+            .filter(
+                Q(year__gt=current_year) |
+                (Q(year=current_year) & Q(week_no__gte=current_week))
+            )
+            .order_by('year', 'week_no')
+        )
 
         products = products.annotate(
             latest_incoming=Subquery(latest_record.values('incoming_goods')[:1]),
             latest_outgoing=Subquery(latest_record.values('outgoing_goods')[:1]),
             latest_inventory=Subquery(latest_record.values('inventory')[:1]),
             latest_remaining_weeks=Subquery(latest_record.values('remaining_weeks')[:1]),
+             # ⭐ NEW COLUMN
+            future_incoming=Coalesce(
+                Subquery(future_plans.values('planned_incoming')[:1]),
+                Value(0),
+                output_field=IntegerField()
+            )
         )
 
+        # --- Pagination ---
+        paginator = Paginator(products, 50)  # 50 items per page
+        page_number = request.GET.get('page')
+        page_obj = paginator.get_page(page_number)
+        # Calculate starting index for serial numbers
+        start_index = (page_obj.number - 1) * paginator.per_page
+
+        # Get latest week info
         glatest_record = WeeklyRecord.objects.order_by('-year', '-week_no').first()
         latest_week= glatest_record.week_no
         latest_year= glatest_record.year
@@ -69,35 +93,30 @@ def home(request):
         total_inactive = Product.objects.filter(is_active=False).count()
 
         #need_attention = [r for p in products for r in [WeeklyRecord.objects.filter(product=p, year=current_year, week_no=current_week).first()] if r and r.remaining_weeks<=2]
-        
         # --- NEED ATTENTION (CURRENT WEEK ONLY) ---
-        need_attention = []
-        for p in products:
-            latest = WeeklyRecord.objects.filter(
-                product=p,
-                year=latest_year,
-                week_no=latest_week
-            ).first()
+        # need_attention = []
+        # for p in page_obj:
+        #     latest = WeeklyRecord.objects.filter(
+        #         product=p,
+        #         year=latest_year,
+        #         week_no=latest_week
+        #     ).first()
 
-            if latest and latest.remaining_weeks <= 5:
-                need_attention.append(latest)
+        #     if latest and latest.remaining_weeks <= 5:
+        #         need_attention.append(latest)
 
-        recently_added = products.order_by('-created_at')[:5]
+        #     p.record = p.weeklyrecord_set.filter(year=current_year, week_no=current_week).first()
 
-        # Add the filtered record to each product
-        for p in products:
-            p.record = p.weeklyrecord_set.filter(year=current_year, week_no=current_week).first()
+        recently_added = products.order_by('-created_at')[:5]        
 
-        # Predictions
-        #product_predictions = {p.jan_code:predict_inventory(p,weeks=1) for p in products}
-
-        # --- Pagination ---
-        paginator = Paginator(products, 50)  # 50 items per page
-        page_number = request.GET.get('page')
-        page_obj = paginator.get_page(page_number)
-        # Calculate starting index for serial numbers
-        start_index = (page_obj.number - 1) * paginator.per_page
-
+        need_attention = list(
+        WeeklyRecord.objects.filter(
+            year=latest_year,
+            week_no=latest_week,
+            remaining_weeks__lte=5,
+            product__is_active=True
+        )
+    )
         # Check your existing condition
         has_need_attention = len(need_attention) > 0
         
@@ -131,6 +150,7 @@ def home(request):
             'latest_week': latest_week,
             'week_label': week_label,
             'latest_label': latest_label,
+  
         }
         
         return render(request,'dashboard/home.html', context)
@@ -220,11 +240,31 @@ def export_csv(request):
 @login_required
 def weekly_summary(request):
     search = request.GET.get('search', '')
-    week_input = request.GET.get("week") 
-    selected_week_value = ""
-    selected_label = None
+    sort = request.GET.get("sort", "year_desc")  # default
 
-    records = WeeklyRecord.objects.select_related("product").order_by("-year", "-week_no")
+    # Week range inputs
+    start_week_input = request.GET.get("startweek")  # e.g., "2024-W50"
+    end_week_input   = request.GET.get("endweek")    # e.g., "2025-W03"
+
+    # Default template variables
+    start_week_value = start_week_input or ""
+    end_week_value   = end_week_input or ""
+    selected_label   = None  # Optional: you can compute a label for UI
+
+    records = WeeklyRecord.objects.select_related("product")#.order_by("-year", "-week_no")
+    SORT_MAP = {
+        "year_desc": ("-year", "-week_no"),
+        "year_asc": ("year", "week_no"),
+        # "week_desc": ("-week_no",),
+        # "week_asc": ("week_no",),
+        "product_asc": ("product__product_name","year", "week_no",),
+        "product_desc": ("-product__product_name","-year", "-week_no",),
+        "yayoi_asc": ("product__yayoi_code","year", "week_no",),
+        "yayoi_desc": ("-product__yayoi_code","-year", "-week_no",),
+    }
+
+    order_fields = SORT_MAP.get(sort, ("-year", "-week_no"))
+    records = records.order_by(*order_fields)
 
     if search:
         records = records.filter(
@@ -232,17 +272,36 @@ def weekly_summary(request):
             Q(product__jan_code__icontains=search) |
             Q(product__yayoi_code__icontains =search)
         )
-    if week_input:
-            year, week = str.split(week_input, '-W')
-            year = int(year)
-            week = int(week)
-            records = records.filter(year=year, week_no=week)
+    # Apply week range filter if both start and end are provided
+    if start_week_input and end_week_input:
+        try:
+            # Convert to integers
+            start_year, start_week = map(int, start_week_input.split('-W'))
+            end_year, end_week     = map(int, end_week_input.split('-W'))
 
-            selected_week_value = week_input
-            selected_label = iso_week_to_japanese_label(year, week)
+            if start_year == end_year:
+                # Same year: simple filter
+                records = records.filter(
+                    year=start_year,
+                    week_no__gte=start_week,
+                    week_no__lte=end_week
+                )
+            else:
+                # Different years: use Q objects
+                records = records.filter(
+                    Q(year=start_year, week_no__gte=start_week) |
+                    Q(year=end_year, week_no__lte=end_week) |
+                    Q(year__gt=start_year, year__lt=end_year)
+                )
+        except ValueError:
+        # Invalid input; ignore week filtering
+            pass
+        start_label = iso_week_to_japanese_label(start_year, start_week)
+        end_label   = iso_week_to_japanese_label(end_year, end_week)
+        selected_label = f"{start_label} ~ {end_label}"
 
     # --- Pagination ---
-    paginator = Paginator(records, 50)  # 20 items per page
+    paginator = Paginator(records, 50)  # 50 items per page
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
     
@@ -254,11 +313,13 @@ def weekly_summary(request):
         "search": search,
         'page_obj': page_obj,
         'start_index': start_index,
-        "selected_week_value": selected_week_value,
+        "start_week_value": start_week_value,
+        "end_week_value": end_week_value,
         "current_year": current_year,
         "current_week": current_week,
         "week_label": week_label,
         "selected_label": selected_label,
+        "sort": sort,
     }
     return render(request, 'dashboard/weekly_summary.html', context)
 
@@ -322,6 +383,7 @@ def inventory_list(request):
 def need_attention_list(request):
     search = request.GET.get('search', '')
     export = request.GET.get('export')  # 👈 export flag
+    sort = request.GET.get("sort", "-remaining_weeks")  # default sort by remaining weeks desc
     # find latest week with data
     latest_record = WeeklyRecord.objects.order_by('-year', "-week_no").first()
    
@@ -335,12 +397,20 @@ def need_attention_list(request):
                                           ).select_related("product")
 
     if search:
-        records = records.filter(Q(product__jan_code__icontains=search) | 
+        records = records.filter(Q(product__yayoi_code__icontains=search) | 
                                  Q(product__product_name__icontains=search)
                                  )
     
-     # sort by remaining weeks (highest first)
-    records = records.order_by("-remaining_weeks")
+    # sort by remaining weeks (highest first)
+    #records = records.order_by("-remaining_weeks")
+
+    SORT_MAP = {
+        "remaining_weeks_desc": ("-remaining_weeks"),
+        "remaining_weeks_asc": ("remaining_weeks"),
+    }
+
+    order_fields = SORT_MAP.get(sort, ("-remaining_weeks"))
+    records = records.order_by(order_fields)
 
     # 🔹 EXPORT MODE (NO PAGINATION)
     if export == "csv":
@@ -384,6 +454,7 @@ def need_attention_list(request):
         'current_year':current_year,
         'current_week':current_week,
         'week_label':week_label,
+        'sort':sort,
     })
 
 @login_required

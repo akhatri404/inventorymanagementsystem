@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<!-- weekly/weekly_inventory_table.html -->
+ <h4 class="mb-3 bg-secondary text-center text-white py-3">
+    棚卸準備表
+</h4>
+
+<form method="get" action="{% url 'weekly_inventory_form' %}" class="mb-3 d-flex gap-2">
+    <input type="text" id="searchBar" name="search" placeholder="Search by code or name" value="{{ search }}" class="form-control">
+    <a id="clearSearch" class="btn btn-secondary">Clear</a>
+    <a href="{% url 'weekly_inventory_form' %}" class="btn btn-success">Reset</a>
+</form>
+
+<a href="{% url 'upload_product_master' %}" class="btn btn-success">Load Data</a>
+<!-- <form method="post" enctype="multipart/form-data"class="mt-3 mb-4 gap-2"
+      action="{% url 'upload_product_master' %}">
+    {% csrf_token %}
+    <input type="file" name="file" accept=".xls, .xlsx" class="form-control mb-3" required>
+    <button type="submit">Upload</button>
+</form> -->
+
+<form id="weekly-inventory-form" method="post" action="{% url 'save_weekly_inventory_table' %}">
+    {% csrf_token %}
+    <div class="mb-3 d-flex justify-content-between align-items-center">
+        
+        <div class="md-3 d-flex gap-2">
+            <input class="form-control" type="week" name="week_no" value="{{ week_no }}" required>           
+        </div>
+
+        <div class="md-3 d-flex gap-2">
+            <button class="btn btn-primary" type="button" id="calculate-btn">Calculate</button>
+            <button class="btn btn-warning" type="submit">Save</button>
+        </div>
+    </div>
+
+    <table class="table table-bordered table-hover table-sm" id="productsTable">
+        <thead class="table-dark">
+            <tr>
+                <th>#</th>
+                <th>Yayoi Code</th>
+                <th>Product Name</th>
+                <th>Quantity</th>
+                <th>Total Quantity</th>
+                <th>No. of Cases</th>
+                <th>Loose</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for row in rows %}
+            <tr>
+                <td align="center">{{ forloop.counter }}</td>
+                <td>{{ row.yayoi_code }}</td>
+                <td>{{ row.product_name }}</td>
+                
+                <td align="center">
+                    <input type="number" class="quantity" data-product="{{ row.product_id }}" name="quantity_{{ row.product_id }}" value="{{ row.quantity }}">
+                </td>
+                <td align="center">
+                    <input type="number" class="total_quantity" data-product="{{ row.product_id }}" name="total_{{ row.product_id }}" value="{{ row.total_quantity }}">
+                </td>
+                <td align="center" class="no_of_cases" id="cases_{{ row.product_id }}">{{ row.no_of_cases }}</td>
+                <td align="center" class="loose" id="loose_{{ row.product_id }}">{{ row.loose }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="md-3 d-flex gap-2">
+        <button class="btn btn-primary" type="button" id="calculate-btn">Calculate</button>
+        <button class="btn btn-warning" type="submit">Save</button>
+    </div>
+</form>
+
+<script>
+document.getElementById("calculate-btn").addEventListener("click", function() {
+    const rows = document.querySelectorAll("tr");
+    rows.forEach(row => {
+        const qtyInput = row.querySelector(".quantity");
+        const totalInput = row.querySelector(".total_quantity");
+        if(qtyInput && totalInput){
+            const quantity = parseInt(qtyInput.value) || 0;
+            const total = parseInt(totalInput.value) || 0;
+
+            const cases = quantity > 0 ? Math.floor(total / quantity) : 0;
+            const loose = quantity > 0 ? total % quantity : 0;
+
+            const productId = qtyInput.dataset.product;
+            document.getElementById("cases_" + productId).innerText = cases;
+            document.getElementById("loose_" + productId).innerText = loose;
+        }
+    });
+});
+
+ document.addEventListener("DOMContentLoaded", function () {
+        const searchBar = document.getElementById("searchBar");
+        const clearBtn = document.getElementById("clearSearch");
+
+        clearBtn.addEventListener("click", function () {
+            searchBar.value = "";
+
+            // Show all rows again
+            const rows = document.querySelectorAll("#productsTable tbody tr"); // correct table id
+            rows.forEach(row => row.style.display = "");
+
+            searchBar.focus();
+        });
+
+        searchBar.addEventListener("keyup", function () {
+            const filter = this.value.toLowerCase();
+            const rows = document.querySelectorAll("#productsTable tbody tr"); // always get fresh rows
+            rows.forEach(row => {
+                const name = row.cells[2].textContent.toLowerCase();
+                const code = row.cells[1].textContent.toLowerCase();
+                row.style.display = (name.includes(filter) || code.includes(filter)) ? "" : "none";
+            });
+        });
+    });
+</script>
+
+
+
+{% endblock %}

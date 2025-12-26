@@ -18,7 +18,7 @@ class Product(models.Model):
     is_active = models.BooleanField(default=True)
 
     def __str__(self):
-        return self.product_name
+        return f"{self.yayoi_code} | {self.product_name}"
 
     def save(self, *args, **kwargs):
         self.forecast = (self.monthly_sales_prediction / 30) * 7
@@ -31,3 +31,11 @@ class ProductDefaults(models.Model):
 
     def __str__(self):
         return f"Defaults for {self.product.product_name}"
+
+class ProductMaster(models.Model):
+    yayoi_code = models.CharField(max_length=50, unique=True)
+    product_name = models.CharField(max_length=255)
+    quantity = models.IntegerField(default=0)
+
+    def __str__(self):
+        return f"{self.yayoi_code} - {self.product_name}"

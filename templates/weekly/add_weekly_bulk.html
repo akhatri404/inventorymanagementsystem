@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 
-<h4>Add Weekly Records</h4>
+<h4 class="mb-3 bg-success text-center text-white py-3">毎週追加</h4>
 
 <!-- <p><strong>Year:</strong> {{ year }} — <strong>Week:</strong> {{ week }}</p> -->
 
@@ -19,17 +19,17 @@
     <div class="d-flex gap-3 mb-3 align-items-end">
         <div>
             <label class="form-label">Week Label</label>
-            <input type="text" name="week_label" class="form-control" value="{{ week_label }}" readonly>
+            <input type="text" name="week_label" class="form-control" value="{{ week_label }}">
         </div>
         
         <div>
             <label class="form-label">Year</label>
-            <input type="number" name="year" class="form-control" value="{{ year }}" readonly>
+            <input type="number" name="year" class="form-control" value="{{ year }}" min="2020" max="9999">
         </div>
 
         <div>
             <label class="form-label">Week</label>
-            <input type="number" name="week" class="form-control" value="{{ week }}" readonly> 
+            <input type="number" name="week" class="form-control" value="{{ week }}" min="1" max="53"> 
         </div>
 
         <!-- <button type="button" class="btn btn-info mb-0" id="load-defaults-btn" style="height: 45px;">
@@ -41,7 +41,7 @@
     </div>
 
     <div class="mb-3">
-        <label class="form-label">Upload Inventory Excel</label>
+        <label class="form-label">Upload 棚卸準備表</label>
         <input type="file" id="inventoryFile" class="form-control" accept=".xlsx,.xls">
     </div>
 

@@ -1,16 +1,30 @@
 from django.shortcuts import render, redirect,  get_object_or_404
-from .models import WeeklyRecord
+from .models import WeeklyRecord, FutureIncomingPlan, WeeklyInventory
 from .forms import WeeklyRecordForm
 from django.contrib.auth.decorators import login_required
 from accounts.decorators import role_required
-from datetime import date, timedelta
+from datetime import date
 from django.contrib import messages
-from products.models import Product
-
+from products.models import Product, ProductMaster
+from django.utils import timezone
+from django.db import transaction
 import pandas as pd
 from django.http import JsonResponse
-
+from django.db.models import Q
 from dashboard.views import iso_week_to_japanese_label
+from django.core.paginator import Paginator
+
+def iso_week_to_japanese_label(iso_year: int, iso_week: int) -> str:
+    # Monday of ISO week
+    monday = date.fromisocalendar(iso_year, iso_week, 1)
+
+    # Sunday-start week (Japanese UI)
+    sunday = monday
+    return f"{sunday.strftime('%y')}年{sunday.month}月{sunday.day}日週"
+
+today = timezone.now().date()
+current_year, current_week, _ = today.isocalendar()
+week_label = iso_week_to_japanese_label(current_year, current_week)
 
 @login_required
 @role_required(['add'])
@@ -68,15 +82,21 @@ def add_weekly_bulk(request):
         week = int(request.POST.get("week", default_week))
 
         selected = request.POST.getlist("selected_products")
+        created_any = False
+        updated_any = False
 
         for pid in selected:
-            incoming = to_int(request.POST.get(f"incoming_{pid}", 0))
+            product = Product.objects.get(id=pid)
+
+            # 🔹 Future plan fallback
+            planned_incoming = get_default_incoming(product, year, week)
+            incoming = to_int(request.POST.get(f"incoming_{pid}", "").strip() or planned_incoming)
             inventory = to_int(request.POST.get(f"inventory_{pid}", 0))
             
             # Get the product to ensure we process in correct order
             product = Product.objects.get(id=pid)
             
-            record, created = WeeklyRecord.objects.get_or_create(
+            record, created = WeeklyRecord.objects.update_or_create(
                 product=product,
                 year=year,
                 week_no=week,
@@ -85,13 +105,19 @@ def add_weekly_bulk(request):
                     'inventory': inventory,
                 }
             )
-
+            
             record.save()  # ensure save() calculations run
+            created_any |= created
+            updated_any |= not created
+            FutureIncomingPlan.objects.filter(product=product, year=year, week_no=week).delete()
 
-        if created:
-            messages.success(request, "Weekly record added successfully!")
+        if created_any and updated_any:
+            messages.success(request, "Weekly records added and updated successfully!")
+        elif created_any:
+            messages.success(request, "Weekly records added successfully!")
         else:
-            messages.warning(request, f"Weekly record for week {week} already exists!")
+            messages.success(request, "Weekly records updated successfully!")
+               
         return redirect("weekly-summary")
 
     # For initial GET load:
@@ -142,6 +168,130 @@ def add_weekly_bulk(request):
 
 #     return JsonResponse({"data": result})
 
+@login_required
+@role_required(['add'])
+def upload_product_master(request):
+    message = ""
+    
+    if request.method == "POST":
+        file = request.FILES.get("file")
+        file_ext = file.name.split('.')[-1].lower()
+        if not file:
+            message = "No file uploaded"
+        else:
+            try:
+                if file_ext == 'xls':
+                    df = pd.read_excel(file, header=3, engine='xlrd')  # for old .xls files
+                elif file_ext == 'xlsx':
+                    df = pd.read_excel(file, header=3, engine='openpyxl')  # for .xlsx files
+                else:
+                    raise ValueError("Unsupported file type")
+            except Exception:
+                message = "Invalid Excel file"
+            else:
+                required_columns = {"商品コード", "商品名", "入り数"}
+                if not required_columns.issubset(df.columns):
+                    message = "Missing required columns"
+                else:
+                    created, updated = 0, 0
+                    for _, row in df.iterrows():
+                        obj, is_created = ProductMaster.objects.update_or_create(
+                            yayoi_code=row["商品コード"],
+                            defaults={"product_name": row["商品名"], "quantity": row["入り数"]},
+                        )
+                        created += int(is_created)
+                        updated += int(not is_created)
+                    message = f"{created} products created, {updated} updated"
+
+    # For GET request or after processing POST, render the same template
+    return render(request, "weekly/upload_product_master.html", {
+        "message": message
+    })
+
+@login_required
+@role_required(['add'])
+def weekly_inventory_table(request):
+    today = date.today()
+    year, week_no, _ = today.isocalendar()
+    search = request.GET.get("search", "")
+    if request.method == "GET":
+        week_value = request.GET.get("week")
+        
+        if week_value:
+            year_str, week_str = week_value.split('-W')
+            year = int(year_str)
+            week_no = int(week_str)
+
+    if search:
+        products = ProductMaster.objects.filter(
+            Q(product_name__icontains=search) |
+            Q(yayoi_code__icontains=search)
+        ).order_by("yayoi_code")
+    else:
+        products = ProductMaster.objects.all().order_by("yayoi_code")
+
+    # Fetch existing WeeklyInventory for this week
+    existing_inventory = {
+        i.product_id: i
+        for i in WeeklyInventory.objects.filter(year=year, week_no=week_no)
+    }
+
+    rows = []
+    for product in products:
+        inv = existing_inventory.get(product.id)
+        rows.append({
+            "product_id": product.id,
+            "yayoi_code": product.yayoi_code,
+            "product_name": product.product_name,
+            #"sn": getattr(product, "sn", ""),  # if sn exists in ProductMaster
+            "quantity": product.quantity,
+            "total_quantity": inv.total_quantity if inv else "",
+            "no_of_cases": inv.no_of_cases if inv else "",
+            "loose": inv.loose if inv else "",
+        })
+
+    return render(request, "weekly/weekly_inventory_form.html", {
+        "rows": rows,
+        "year": year,
+        "week_no": week_no,
+        "search": search,
+    })
+
+@transaction.atomic
+def save_weekly_inventory_table(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "POST only"}, status=400)
+
+    year = request.POST.get("year")
+    week_no = request.POST.get("week_no")
+
+    for key in request.POST:
+        if key.startswith("quantity_"):
+            product_id = key.replace("quantity_", "")
+            quantity = int(request.POST.get(f"quantity_{product_id}", 0))
+            total = int(request.POST.get(f"total_{product_id}", 0))
+
+            if quantity > 0:
+                no_of_cases = total // quantity
+                loose = total % quantity
+            else:
+                no_of_cases = 0
+                loose = 0
+
+            WeeklyInventory.objects.update_or_create(
+                product_id=product_id,
+                year=year,
+                week_no=week_no,
+                defaults={
+                    "quantity": quantity,
+                    "total_quantity": total,
+                    "no_of_cases": no_of_cases,
+                    "loose": loose,
+                },
+            )
+
+    return JsonResponse({"message": "Weekly inventory saved"})
+
 # -------------------------
 # Data3 cross sheet mapping
 # -------------------------
@@ -171,6 +321,30 @@ CATEGORY_MAP = {
 }
 
 
+#---------------------------------------------------------
+def load_weekly_inventory(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "POST only"}, status=400)
+
+    inventory = WeeklyInventory.objects.filter(
+        year=current_year, week_no=current_week
+    ).select_related("product")
+
+    data = [
+        {
+            "yayoi_code": i.product.yayoi_code,
+            "product_name": i.product.product_name,
+            "quantity": i.quantity,
+            "total_quantity": i.total_quantity,
+            "no_of_cases": i.no_of_cases,
+            "lose": i.loose,
+        }
+        for i in inventory
+    ]
+
+    return JsonResponse({"data": data})
+#---------------------------------------------------------
+
 # ======================================================================
 # MAIN FUNCTION — handles upload & returns computed final D values
 # ======================================================================
@@ -181,11 +355,15 @@ def upload_weekly_inventory(request):
         return JsonResponse({"error": "POST only"}, status=400)
 
     file = request.FILES.get("file")
+    file_ext = file.name.split('.')[-1].lower()
     if not file:
         return JsonResponse({"error": "No file uploaded"}, status=400)
 
     try:
-        df = pd.read_excel(file)
+        if file_ext == 'xls':
+            df = pd.read_excel(file, header=3, engine='xlrd')  # for old .xls files
+        elif file_ext == 'xlsx':
+            df = pd.read_excel(file, header=3, engine='openpyxl')  # for .xlsx files
     except:
         return JsonResponse({"error": "Invalid Excel file"}, status=400)
 
@@ -300,71 +478,199 @@ def upload_weekly_inventory(request):
 
 @login_required
 def upload_historical_weekly(request):
-    if request.method != "POST":
-        return render(request, "weekly/upload_historical.html")
+    context = {}
+    if request.method == "POST":
+        year = int(request.POST.get("year"))
+        week = int(request.POST.get("week_no"))
+        file = request.FILES.get("file")
 
-    year = int(request.POST.get("year"))
-    week = int(request.POST.get("week_no"))
-    file = request.FILES.get("file")
+        context["year"] = year
+        context["week_no"] = week        
 
-    if not file:
-        messages.error(request, "No file uploaded")
-        return redirect("upload_historical_weekly")
-
-    try:
-        df = pd.read_excel(file)
-    except:
-        messages.error(request, "Invalid Excel file")
-        return redirect("upload_historical_weekly")
-
-    required = {"yayoi_code", "incoming", "outgoing", "inventory"}
-    if not required.issubset(df.columns):
-        messages.error(
-            request,
-            "Excel must contain: yayoi_code, incoming, outgoing, inventory"
-        )
-        return redirect("upload_historical_weekly")
-
-    missing_products = []
-    imported = 0
-    numeric_cols = ["incoming", "outgoing", "inventory"]
-
-    for col in numeric_cols:
-        df[col] = pd.to_numeric(df[col], errors="coerce")
-        
-    df = df.fillna(0)
-
-    for _, row in df.iterrows():
-        code = str(row["yayoi_code"]).strip()
+        if not file:
+            messages.error(request, "No file uploaded")
+            return redirect("upload_historical_weekly")
 
         try:
-            product = Product.objects.get(yayoi_code=code)
-        except Product.DoesNotExist:
-            missing_products.append(code)
-            continue
+            df = pd.read_excel(file)
+        except:
+            messages.error(request, "Invalid Excel file")
+            return redirect("upload_historical_weekly")
 
-        WeeklyRecord.objects.update_or_create(
-            product=product,
-            year=year,
-            week_no=week,
-            defaults={
-                "incoming_goods": int(row["incoming"] or 0),
-                "outgoing_goods": int(row["outgoing"] or 0),
-                "inventory": int(row["inventory"] or 0),
-                "is_historical": True
-            }
-        )
-        imported += 1
+        required = {"yayoi_code", "incoming", "outgoing", "inventory"}
+        if not required.issubset(df.columns):
+            messages.error(
+                request,
+                "Excel must contain: yayoi_code, incoming, outgoing, inventory"
+            )
+            return redirect("upload_historical_weekly")
 
-    if missing_products:
-        messages.warning(
+        missing_products = []
+        imported = 0
+        numeric_cols = ["incoming", "outgoing", "inventory"]
+
+        for col in numeric_cols:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+            
+        df = df.fillna(0)
+
+        for _, row in df.iterrows():
+            code = str(row["yayoi_code"]).strip()
+
+            try:
+                product = Product.objects.get(yayoi_code=code)
+            except Product.DoesNotExist:
+                missing_products.append(code)
+                continue
+
+            WeeklyRecord.objects.update_or_create(
+                product=product,
+                year=year,
+                week_no=week,
+                defaults={
+                    "incoming_goods": int(row["incoming"] or 0),
+                    "outgoing_goods": int(row["outgoing"] or 0),
+                    "inventory": int(row["inventory"] or 0),
+                    "is_historical": True
+                }
+            )
+            imported += 1
+
+        if missing_products:
+            messages.warning(
+                request,
+                f"{len(missing_products)} products not found and skipped."
+            )
+
+        messages.success(
             request,
-            f"{len(missing_products)} products not found and skipped."
+            f"Historical data uploaded for Year {year}, Week {week}. ({imported} records)"
         )
 
-    messages.success(
-        request,
-        f"Historical data uploaded for Year {year}, Week {week}. ({imported} records)"
+    return render(request, "weekly/upload_historical.html", context)
+
+
+def future_incoming_view(request):
+    search = request.GET.get('search')
+    week_value = request.GET.get('week') or request.POST.get('week')
+
+    year = week = None
+    if week_value:
+        year_str, week_str = week_value.split('-W')
+        year = int(year_str)
+        week = int(week_str)
+
+        # ✅ Normalize to ISO week/year
+        iso_date = date.fromisocalendar(year, week, 1)
+        year, week, _ = iso_date.isocalendar()
+
+    products = Product.objects.filter(is_active=True).order_by("yayoi_code")
+
+    # Filter for display only
+    if search:
+        products = products.filter(
+            Q(product_name__icontains=search) |
+            Q(yayoi_code__icontains=search)
+        )
+
+    if request.method == 'POST':
+        if not week_value:
+            messages.error(request, "Week value is required")
+            return redirect(request.path)
+
+        # ✅ Always save for ALL active products
+        save_products = Product.objects.filter(is_active=True)
+
+        for product in save_products:
+            value = request.POST.get(f'incoming_{product.id}')
+
+            if value is None:
+                continue  # field not submitted at all
+
+            planned_value = int(value)
+
+            if planned_value > 0:
+                FutureIncomingPlan.objects.update_or_create(
+                    product=product,
+                    year=year,
+                    week_no=week,
+                    defaults={'planned_incoming': planned_value}
+                )
+            else:
+                # Optional: remove existing record if user cleared it
+                FutureIncomingPlan.objects.filter(
+                    product=product,
+                    year=year,
+                    week_no=week
+                ).delete()
+
+        messages.success(
+            request, f"Future incoming stock saved for {year} W{week}"
+        )
+        return redirect(f"{request.path}")
+
+    plans = {
+        p.product_id: p.planned_incoming
+        for p in FutureIncomingPlan.objects.filter(year=year, week_no=week)
+    }
+
+    return render(request, 'weekly/future_incoming.html', {
+        'products': products,
+        'plans': plans,
+        'search': search,
+    })
+
+
+def get_default_incoming(product, year, week):
+    plan = FutureIncomingPlan.objects.filter(
+        product=product,
+        year=year,
+        week_no=week
+    ).first()
+
+    return plan.planned_incoming if plan else 0
+
+def all_future_incoming_view(request):
+    search = request.GET.get("search", "")
+    weekvalue = request.GET.get("week")
+
+    plans = FutureIncomingPlan.objects.select_related("product").filter(
+        product__is_active=True,
+        planned_incoming__gt=0
     )
 
-    return redirect("weekly-summary")
+    if search:
+        plans = plans.filter(
+            Q(product__product_name__icontains=search) |
+            Q(product__yayoi_code__icontains=search)
+        )
+
+    if weekvalue and "-W" in weekvalue:
+        try:
+            year_str, week_str = weekvalue.split("-W")
+            year = int(year_str)
+            week = int(week_str)
+            plans = plans.filter(year=year, week_no=week)
+        except ValueError:
+            pass
+
+    # Default behavior → future only
+    if not search and not weekvalue:
+        plans = plans.filter(
+            Q(year__gt=current_year) |
+            (Q(year=current_year) & Q(week_no__gte=current_week))
+        )
+
+    plans = plans.order_by("year", "week_no", "product__yayoi_code")
+
+    paginator = Paginator(plans, 50)
+    page_obj = paginator.get_page(request.GET.get("page"))
+    start_index = (page_obj.number - 1) * paginator.per_page
+
+    return render(request, "weekly/all_future_incoming.html", {
+        "page_obj": page_obj,
+        "search": search,
+        "start_index": start_index,
+        "current_year": current_year,
+        "current_week": current_week,
+    })
